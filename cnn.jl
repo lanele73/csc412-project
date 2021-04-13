@@ -5,7 +5,7 @@ using Statistics: mean
 
 function unpack(path)
     @load path data
-    return data[1], data[2], data[2]
+    return data[1], data[2], data[3]
 end
 
 
@@ -80,8 +80,8 @@ function loss(batch_Xp, batch_Xd, Y)
     return sum(Flux.Losses.logitbinarycrossentropy.(pixel, Y))/N
 end
 
-
-begin
+test = false
+if test
     batch_Xp = Xp_test[:,:,:,1:23]
     batch_Xd = Xd_test[:,:,:,1:23]
     outcome = Y_test[1:23]
@@ -89,7 +89,7 @@ begin
     grad = gradient(() -> loss(batch_Xp, batch_Xd, outcome), ps)
 end
 
-batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=200, shuffle=false)
+batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=1000, shuffle=false)
 using BSON
 
 function train!(cnn, data; nepochs=10)
@@ -110,4 +110,17 @@ function train!(cnn, data; nepochs=10)
     bson("params.bson", ps=ps)
 end
 
-train!(pass_net, batches; nepochs=50)
+# train!(pass_net, batches; nepochs=50)
+
+ps = BSON.load("params.bson", @__MODULE__)
+
+Flux.loadparams!(pass_net, ps)
+
+batch = first(batches)
+Xp = batch[1]
+Xd = batch[2]
+Y = batch[3]
+
+Y_train[20:30]
+
+mean(Y_test)
