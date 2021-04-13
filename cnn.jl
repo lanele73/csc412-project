@@ -110,4 +110,4 @@ function train!(cnn, data; nepochs=10)
     bson("params.bson", ps=ps)
 end
 
-# train!(pass_net, batches; nepochs=3)
+train!(pass_net, batches; nepochs=50)
