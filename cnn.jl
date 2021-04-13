@@ -18,13 +18,19 @@ begin
     Xd = Xd[:,:,:,shuffle_index]
     Y = Y[shuffle_index]
 
-    Xp = convert(Array{Float32, 4}, Xp)
-    Xd = convert(Array{Float32, 4}, Xd)
-    Y = convert(Vector{Float32}, Y)
+    split_index = Int(floor(size(Y)[1] * 0.9))
 
-    Xp_train, Xp_test = splitobs(Xp, at=0.9)
-    Xd_train, Xd_test = splitobs(Xd, at=0.9)
-    Y_train, Y_test = splitobs(Y, at=0.9)
+    Xp_train = Xp[:,:,:,1:split_index]
+    Xd_train = Xd[:,:,:,1:split_index]
+    Y_train = Y[1:split_index]
+
+    Xp_test = Xp[:,:,:,split_index+1:end]
+    Xd_test = Xd[:,:,:,split_index+1:end]
+    Y_test = Y[split_index+1:end]
+
+    # Xp_train, Xp_test = splitobs(Xp, at=0.9)
+    # Xd_train, Xd_test = splitobs(Xd, at=0.9)
+    # Y_train, Y_test = splitobs(Y, at=0.9)
 end
 
 
