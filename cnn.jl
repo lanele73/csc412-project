@@ -90,7 +90,7 @@ begin
 end
 
 batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=200, shuffle=false)
-x = first(batches)
+using BSON
 
 function train!(cnn, data; nepochs=10)
     ps = Flux.params(cnn)
@@ -105,8 +105,9 @@ function train!(cnn, data; nepochs=10)
             Flux.Optimise.update!(opt, ps, grad)
             @info "Batch loss: $(loss(Xp, Xd, Y))"
         end
-
     end
+    ps = Flux.params(cnn)
+    bson("params.bson", ps=ps)
 end
 
-train!(pass_net, batches; nepochs=3)
+# train!(pass_net, batches; nepochs=3)
