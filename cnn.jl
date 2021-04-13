@@ -72,12 +72,12 @@ function pixel_layer(x)
 end
 
 
-function loss(batch_Xp, batch_Xd, outcome)
-    N = size(outcome)[1]
+function loss(batch_Xp, batch_Xd, Y)
+    N = size(Y)[1]
     NN_out = pass_net(batch_Xp)
     x = cat(NN_out, batch_Xd, dims=5)
-    pixel = reshape(pixel_layer(x), size(outcome))
-    return sum(Flux.Losses.logitbinarycrossentropy.(pixel, outcome))/N
+    pixel = reshape(pixel_layer(x), size(Y))
+    return sum(Flux.Losses.logitbinarycrossentropy.(pixel, Y))/N
 end
 
 
@@ -89,3 +89,24 @@ begin
     grad = gradient(() -> loss(batch_Xp, batch_Xd, outcome), ps)
 end
 
+batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=200, shuffle=false)
+x = first(batches)
+
+function train!(cnn, data; nepochs=10)
+    ps = Flux.params(cnn)
+    opt = ADAM()
+    for epoch in 1:nepochs
+        @info "--------- $(epoch) ---------"
+        for batch in data
+            Xp = batch[1]
+            Xd = batch[2]
+            Y = batch[3]
+            grad = gradient(() -> loss(Xp, Xd, Y), ps)
+            Flux.Optimise.update!(opt, ps, grad)
+            @info "Batch loss: $(loss(Xp, Xd, Y))"
+        end
+
+    end
+end
+
+train!(pass_net, batches; nepochs=3)
