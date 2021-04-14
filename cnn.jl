@@ -89,9 +89,10 @@ if test
     grad = gradient(() -> loss(batch_Xp, batch_Xd, outcome), ps)
 end
 
-batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=1000, shuffle=false)
+batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=100, shuffle=false)
 using BSON
-
+batch_loss_values = []
+epoch_loss_values = []
 function train!(cnn, data; nepochs=10)
     ps = Flux.params(cnn)
     opt = ADAM()
@@ -104,23 +105,25 @@ function train!(cnn, data; nepochs=10)
             grad = gradient(() -> loss(Xp, Xd, Y), ps)
             Flux.Optimise.update!(opt, ps, grad)
             @info "Batch loss: $(loss(Xp, Xd, Y))"
+            push!(batch_loss_values, loss(Xp, Xd, Y))
         end
+        push!(epoch_loss_values, loss(first(data)[1], first(data)[2], first(data)[3]))
     end
     ps = Flux.params(cnn)
     bson("params.bson", ps=ps)
+    bson("loss_history", history = (batch_loss_values, epoch_loss_values))
 end
 
-# train!(pass_net, batches; nepochs=50)
 
-ps = BSON.load("params.bson", @__MODULE__)
+### Train model - LEAVE COMMENTED
+train!(pass_net, batches; nepochs=5)
 
-Flux.loadparams!(pass_net, ps)
 
-batch = first(batches)
-Xp = batch[1]
-Xd = batch[2]
-Y = batch[3]
+begin
+    ps = BSON.load("params.bson", @__MODULE__)
+    Flux.loadparams!(pass_net, ps)
+end
 
-Y_train[20:30]
-
-mean(Y_test)
+begin
+    plot(loss_values)
+end
