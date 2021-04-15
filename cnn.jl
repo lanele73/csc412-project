@@ -87,15 +87,17 @@ function loss(batch_Xp, batch_Xd, Y)
     return sum(Flux.Losses.binarycrossentropy.(pixel, Y))/N
 end
 
-batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=100, shuffle=false)
+bs = 2000
+batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=bs, shuffle=false)
+num_batches = Int(ceil(size(Y_train)[1] / bs))
 
-test = false
+test = true
 if test
     batch_Xp = first(batches)[1]
     batch_Xd = first(batches)[2]
     Y = first(batches)[3]
     ps = Flux.params(conv_net)
-    grad = gradient(() -> loss(batch_Xp, batch_Xd, Y), ps)
+    @time grad = gradient(() -> loss(batch_Xp, batch_Xd, Y), ps)
 end
 
 batch_loss_values = []
@@ -115,7 +117,7 @@ function train!(cnn, data; nepochs=10)
             @info "Batch loss: $(loss(Xp, Xd, Y))"
             push!(batch_loss_values, loss(Xp, Xd, Y))
         end
-        push!(epoch_loss_values, mean(batch_loss_values[end-565:end]))
+        push!(epoch_loss_values, mean(batch_loss_values[end-num_batches+1:end]))
     end
     ps = Flux.params(cnn)
     bson("saved_runs/params$(nepochs).bson", ps=ps)
@@ -123,22 +125,29 @@ function train!(cnn, data; nepochs=10)
 end
 
 
-### Train model - LEAVE COMMENTED
-# train!(conv_net, batches; nepochs=1)
+##### Train model - LEAVE COMMENTED
+
+# train!(conv_net, batches; nepochs=25)
 
 
-begin
-    params_path = "saved_runs/params1.bson"
-    ps = BSON.load(params_path, @__MODULE__)
-
+##### Load trained model - Check file paths
+load_model = true
+if load_model
+    BSON.@load "saved_runs/params25.bson" ps
+    BSON.@load "saved_runs/loss_history25.bson" history
+    batch_loss_values, epoch_loss_values = history
     Flux.loadparams!(conv_net, ps)
+    batch_Xp = first(batches)[1]
+    batch_Xd = first(batches)[2]
+    Y = first(batches)[3]
+    loss(batch_Xp, batch_Xd, Y)  ### Loss should be around 0.38
 end
 
 begin
-    plot(batch_loss_values)
-
+    plot(epoch_loss_values)
 end
 
 begin
     heatmap(conv_net(Xp_test[:,:,:,2:2])[:,:,1,1], aspect_ratio=:equal)
 end
+
