@@ -1,15 +1,14 @@
-using JLD2, Flux, Random, Plots
-using MLDataPattern: splitobs
+using JLD2, Flux, Random, Plots, Images
 using Statistics: mean
 
+
+##### Load Data #####
 
 function unpack(path)
     @load path data
     return data[1], data[2], data[3]
 end
 
-
-### Load Data ###
 begin
     Xp, Xd, Y = unpack("dataset.jld2")
     shuffle_index = shuffle(MersenneTwister(1), 1:size(Xp)[4])
@@ -28,41 +27,45 @@ begin
     Xd_test = Xd[:,:,:,split_index+1:end]
     Y_test = Y[split_index+1:end]
 
-    # Xp_train, Xp_test = splitobs(Xp, at=0.9)
-    # Xd_train, Xd_test = splitobs(Xd, at=0.9)
-    # Y_train, Y_test = splitobs(Y, at=0.9)
 end
 
+
+##### CNN setup #####
 
 function const_init(d1, d2, d3, d4)
     val = mean(Y_train)
     return val .* ones(Float32,(d1, d2, d3, d4))
 end
 
+function symm_pad(x::Array{Float32, 4})
+    """ Apply symmetric (1,1) padding to a batch of images. """
+    h, w, d, n = size(x)
 
-# let
-#     p1=heatmap(Xp_train[:,:,1,2])
-#     p2=heatmap(Xp_train[:,:,2,2])
-#     p3=heatmap(Xp_train[:,:,3,2])
-#     plot(p1, p2, p3, layout=3)
-# end
+    y1 = ones(Float32, (1, w, d, n)) .* x[1:1,:,:,:]
+    y2 = ones(Float32, (1, w, d, n)) .* x[end:end,:,:,:]
 
+    out = cat(y1, x, y2, dims=1)
+    y3 = ones(Float32, (h+2, 1, d, n)) .* out[:,1:1,:,:]
+    y4 = ones(Float32, (h+2, 1, d, n)) .* out[:,end:end,:,:]
+    return cat(y3, out, y4, dims=2)
+end
 
-pass_net = Chain(
-    Conv((3, 3), 3=>16, relu),              # No padding
-    Conv((1, 1), 16=>1; pad=(1,1)),         # Symmetric padding
+conv_net = Chain(
+    Conv((3, 3), 3=>16, relu),          # No padding
+    symm_pad,                           # Symmetric padding
+    Conv((1, 1), 16=>1),                
 
-    MaxPool((2, 2), pad=SamePad()),         # Same padding
+    MaxPool((2, 2), pad=SamePad()),     # Same padding
     Conv((3, 3), 1=>32, relu),
-    Conv((1, 1), 32=>1; pad=(1,1)),         # Symmetric padding
+    symm_pad,
+    Conv((1, 1), 32=>1),                # Symmetric padding
 
     Upsample((2,2)),
-    Conv((3,3), 1=>16, relu),               # No padding
-    Conv((1,1), 16=>1, sigmoid;             # Symmetric padding
-        pad=(1,1), init=const_init)
+    Conv((3,3), 1=>16, relu),           # No padding
+    symm_pad,                           # Symmetric padding  
+    Conv((1,1), 16=>1, sigmoid;         
+        init=const_init)
 )
-
-# pass_net = f64(pass_net)
 
 function pixel_layer(x)
     surface = x[:,:,:,:,1]
@@ -72,27 +75,32 @@ function pixel_layer(x)
 end
 
 
+##### Model Setup #####
+
+using BSON
+
 function loss(batch_Xp, batch_Xd, Y)
     N = size(Y)[1]
-    NN_out = pass_net(batch_Xp)
+    NN_out = conv_net(batch_Xp)
     x = cat(NN_out, batch_Xd, dims=5)
-    pixel = reshape(pixel_layer(x), size(Y))
-    return sum(Flux.Losses.logitbinarycrossentropy.(pixel, Y))/N
-end
-
-test = false
-if test
-    batch_Xp = Xp_test[:,:,:,1:23]
-    batch_Xd = Xd_test[:,:,:,1:23]
-    outcome = Y_test[1:23]
-    ps = Flux.params(pass_net)
-    grad = gradient(() -> loss(batch_Xp, batch_Xd, outcome), ps)
+    pixel = reshape(pixel_layer(x), (N,))
+    return sum(Flux.Losses.binarycrossentropy.(pixel, Y))/N
 end
 
 batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=100, shuffle=false)
-using BSON
+
+test = false
+if test
+    batch_Xp = first(batches)[1]
+    batch_Xd = first(batches)[2]
+    Y = first(batches)[3]
+    ps = Flux.params(conv_net)
+    grad = gradient(() -> loss(batch_Xp, batch_Xd, Y), ps)
+end
+
 batch_loss_values = []
 epoch_loss_values = []
+
 function train!(cnn, data; nepochs=10)
     ps = Flux.params(cnn)
     opt = ADAM()
@@ -107,23 +115,30 @@ function train!(cnn, data; nepochs=10)
             @info "Batch loss: $(loss(Xp, Xd, Y))"
             push!(batch_loss_values, loss(Xp, Xd, Y))
         end
-        push!(epoch_loss_values, loss(first(data)[1], first(data)[2], first(data)[3]))
+        push!(epoch_loss_values, mean(batch_loss_values[end-565:end]))
     end
     ps = Flux.params(cnn)
-    bson("params.bson", ps=ps)
-    bson("loss_history", history = (batch_loss_values, epoch_loss_values))
+    bson("saved_runs/params$(nepochs).bson", ps=ps)
+    bson("saved_runs/loss_history$(nepochs).bson", history = (batch_loss_values, epoch_loss_values))
 end
 
 
 ### Train model - LEAVE COMMENTED
-train!(pass_net, batches; nepochs=5)
+# train!(conv_net, batches; nepochs=1)
 
 
 begin
-    ps = BSON.load("params.bson", @__MODULE__)
-    Flux.loadparams!(pass_net, ps)
+    params_path = "saved_runs/params1.bson"
+    ps = BSON.load(params_path, @__MODULE__)
+
+    Flux.loadparams!(conv_net, ps)
 end
 
 begin
-    plot(loss_values)
+    plot(batch_loss_values)
+
+end
+
+begin
+    heatmap(conv_net(Xp_test[:,:,:,2:2])[:,:,1,1], aspect_ratio=:equal)
 end
