@@ -135,8 +135,9 @@ end
 load_model = true
 if load_model
     using Zygote
-    BSON.@load "saved_runs/params25.bson" ps
-    BSON.@load "saved_runs/loss_history25.bson" history
+    version = 25
+    BSON.@load "saved_runs/params$(version).bson" ps
+    BSON.@load "saved_runs/loss_history$(version).bson" history
     batch_loss_values, epoch_loss_values = history
     Flux.loadparams!(conv_net, ps)
     batch_Xp = first(batches)[1]
