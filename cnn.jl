@@ -91,7 +91,7 @@ bs = 2000
 batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=bs, shuffle=false)
 num_batches = Int(ceil(size(Y_train)[1] / bs))
 
-test = true
+test = false
 if test
     batch_Xp = first(batches)[1]
     batch_Xd = first(batches)[2]
@@ -131,8 +131,10 @@ end
 
 
 ##### Load trained model - Check file paths
+
 load_model = true
 if load_model
+    using Zygote
     BSON.@load "saved_runs/params25.bson" ps
     BSON.@load "saved_runs/loss_history25.bson" history
     batch_loss_values, epoch_loss_values = history
@@ -143,11 +145,13 @@ if load_model
     loss(batch_Xp, batch_Xd, Y)  ### Loss should be around 0.38
 end
 
-begin
-    plot(epoch_loss_values)
-end
 
-begin
-    heatmap(conv_net(Xp_test[:,:,:,2:2])[:,:,1,1], aspect_ratio=:equal)
-end
+##### Plot loss #####
 
+let
+    plot(title = "Training loss", ylabel="Loss", xlabel="Epoch")
+    batch_range = 1/num_batches:(1/num_batches):size(epoch_loss_values)[1]
+    epoch_range = 1:size(epoch_loss_values)[1]
+    plot!(batch_range,batch_loss_values, label="Batch")
+    plot!(epoch_range,epoch_loss_values, label="Epoch", linewidth=3)
+end
