@@ -114,7 +114,7 @@ function draw_probs(sample_input)
     y = findmax(sample_input[:,:,1])[2][2] - 1
     scatter!([x*120/52],[y*80/34], color=:red, markersize=5, label=nothing)
     draw_pitch!()
-    return p, surf
+    return p, pred_surface
 end
 
 ### Look at samples
