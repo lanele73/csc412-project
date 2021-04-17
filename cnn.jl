@@ -1,11 +1,16 @@
+module cnn
+export conv_net, loss 
+
 using JLD2, Flux, Random, Plots, Images
 using Statistics: mean
 
 
 ##### Load Data #####
 
+
+
 function unpack(path)
-    @load path data
+    JLD2.@load path data
     return data[1], data[2], data[3]
 end
 
@@ -129,30 +134,4 @@ end
 
 # train!(conv_net, batches; nepochs=25)
 
-
-##### Load trained model - Check file paths
-
-load_model = true
-if load_model
-    using Zygote
-    version = 25
-    BSON.@load "saved_runs/params$(version).bson" ps
-    BSON.@load "saved_runs/loss_history$(version).bson" history
-    batch_loss_values, epoch_loss_values = history
-    Flux.loadparams!(conv_net, ps)
-    batch_Xp = first(batches)[1]
-    batch_Xd = first(batches)[2]
-    Y = first(batches)[3]
-    loss(batch_Xp, batch_Xd, Y)  ### Loss should be around 0.38
-end
-
-
-##### Plot loss #####
-
-let
-    plot(title = "Training loss", ylabel="Loss", xlabel="Epoch")
-    batch_range = 1/num_batches:(1/num_batches):size(epoch_loss_values)[1]
-    epoch_range = 1:size(epoch_loss_values)[1]
-    plot!(batch_range,batch_loss_values, label="Batch")
-    plot!(epoch_range,epoch_loss_values, label="Epoch", linewidth=3)
 end

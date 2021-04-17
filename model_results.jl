@@ -2,12 +2,15 @@ using JLD2, BSON, Flux, Zygote, Plots, Images, Random
 using Statistics: mean
 include("Pitch.jl")
 using .Pitch
+include("cnn.jl")
+using .cnn
 
 
 ##### Load model #####
 
+
 function unpack(path)
-    @load path data
+    JLD2.@load path data
     return data[1], data[2], data[3]
 end
 
@@ -30,57 +33,6 @@ begin
     Y_test = Y[split_index+1:end]
 end
 
-
-function const_init(d1, d2, d3, d4)
-    val = mean(Y_train)
-    return val .* ones(Float32,(d1, d2, d3, d4))
-end
-
-function symm_pad(x::Array{Float32, 4})
-    """ Apply symmetric (1,1) padding to a batch of images. """
-    h, w, d, n = size(x)
-
-    y1 = ones(Float32, (1, w, d, n)) .* x[1:1,:,:,:]
-    y2 = ones(Float32, (1, w, d, n)) .* x[end:end,:,:,:]
-
-    out = cat(y1, x, y2, dims=1)
-    y3 = ones(Float32, (h+2, 1, d, n)) .* out[:,1:1,:,:]
-    y4 = ones(Float32, (h+2, 1, d, n)) .* out[:,end:end,:,:]
-    return cat(y3, out, y4, dims=2)
-end
-
-conv_net = Chain(
-    Conv((3, 3), 3=>16, relu),          # No padding
-    symm_pad,                           # Symmetric padding
-    Conv((1, 1), 16=>1),                
-
-    MaxPool((2, 2), pad=SamePad()),     # Same padding
-    Conv((3, 3), 1=>32, relu),
-    symm_pad,
-    Conv((1, 1), 32=>1),                # Symmetric padding
-
-    Upsample((2,2)),
-    Conv((3,3), 1=>16, relu),           # No padding
-    symm_pad,                           # Symmetric padding  
-    Conv((1,1), 16=>1, sigmoid;         
-        init=const_init)
-)
-
-function pixel_layer(x)
-    surface = x[:,:,:,:,1]
-    mask = x[:,:,:,:,2]
-    masked = surface .* mask
-    return sum(masked, dims=(2,1))
-end
-
-function loss(batch_Xp, batch_Xd, Y)
-    N = size(Y)[1]
-    NN_out = conv_net(batch_Xp)
-    x = cat(NN_out, batch_Xd, dims=5)
-    pixel = reshape(pixel_layer(x), (N,))
-    return sum(Flux.Losses.binarycrossentropy.(pixel, Y))/N
-end
-
 bs = 2000
 batches = Flux.Data.DataLoader((Xp_train,Xd_train,Y_train); batchsize=bs, shuffle=false)
 num_batches = Int(ceil(size(Y_train)[1] / bs))
@@ -100,7 +52,17 @@ if load_model
 end
 
 
-### Look at samples
+### Look at performance
+
+let
+    plot(title = "Training loss", ylabel="Loss", xlabel="Epoch")
+    batch_range = 1/num_batches:(1/num_batches):size(epoch_loss_values)[1]
+    epoch_range = 1:size(epoch_loss_values)[1]
+    plot!(batch_range,batch_loss_values, label="Batch")
+    plot!(epoch_range,epoch_loss_values, label="Epoch", linewidth=3)
+end
+
+
 begin
     sample_index = rand(MersenneTwister(1), (1:size(Y_test)[1]), 4)
     sample_input = Xp_test[:,:,:,sample_index]
