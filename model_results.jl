@@ -1,5 +1,7 @@
 using JLD2, BSON, Flux, Zygote, Plots, Images, Random
 using Statistics: mean
+include("Pitch.jl")
+using .Pitch
 
 
 ##### Load model #####
@@ -32,6 +34,19 @@ end
 function const_init(d1, d2, d3, d4)
     val = mean(Y_train)
     return val .* ones(Float32,(d1, d2, d3, d4))
+end
+
+function symm_pad(x::Array{Float32, 4})
+    """ Apply symmetric (1,1) padding to a batch of images. """
+    h, w, d, n = size(x)
+
+    y1 = ones(Float32, (1, w, d, n)) .* x[1:1,:,:,:]
+    y2 = ones(Float32, (1, w, d, n)) .* x[end:end,:,:,:]
+
+    out = cat(y1, x, y2, dims=1)
+    y3 = ones(Float32, (h+2, 1, d, n)) .* out[:,1:1,:,:]
+    y4 = ones(Float32, (h+2, 1, d, n)) .* out[:,end:end,:,:]
+    return cat(y3, out, y4, dims=2)
 end
 
 conv_net = Chain(
@@ -85,38 +100,6 @@ if load_model
 end
 
 
-##### Helper functions #####
-
-function draw_pitch!()
-    # Sidelines
-    plot!(Shape([(0,0), (120,0), (120,80), (0,80)]), fillcolor = nothing, color=:black, label=nothing)         
-
-    # 18yd box
-    plot!(Shape([(0,18), (18,18), (18,62), (0, 62)]), fillcolor = nothing, color=:black, label=nothing)
-    plot!(Shape([(120,18), (102,18), (102,62), (120, 62)]), fillcolor = nothing, color=:black, label=nothing)
-
-    # 10yd box
-    plot!(Shape([(0,30), (6,30), (6,50), (0, 50)]), fillcolor = nothing, color=:black, label=nothing)
-    plot!(Shape([(120,30), (114,30), (114,50), (120, 50)]), fillcolor = nothing, color=:black, label=nothing)
-
-    # Half line
-    plot!(Shape([(60,0), (60,80)]), fillcolor = nothing, color=:black, label=nothing)
-end
-
-
-function draw_probs(sample_input)
-    pred_surface = imfilter(conv_net(sample_input)[:,:,1,1], Kernel.gaussian(0.5))'
-    xs=LinRange(0,120,52)
-    ys=LinRange(0,80,34)
-    p = plot(aspect_ratio=:equal,axis=nothing,border=:none)
-    contour!(xs, ys, pred_surface, fill=true, seriescolor=:summer, linecolor=:black, linewidth=0.5, colorbar=false)
-    x = findmax(sample_input[:,:,1])[2][1] - 1
-    y = findmax(sample_input[:,:,1])[2][2] - 1
-    scatter!([x*120/52],[y*80/34], color=:red, markersize=5, label=nothing)
-    draw_pitch!()
-    return p, pred_surface
-end
-
 ### Look at samples
 begin
     sample_index = rand(MersenneTwister(1), (1:size(Y_test)[1]), 4)
@@ -125,7 +108,7 @@ begin
     plots = []
     surfaces = []
     for i in 1:4
-        p, surf = draw_probs(sample_input[:,:,:,i:i])
+        p, surf = draw_probs(sample_input[:,:,:,i:i], conv_net)
         push!(surfaces, surf)
         push!(plots, p)
     end
