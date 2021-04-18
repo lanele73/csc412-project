@@ -69,7 +69,7 @@ conv_net = Chain(
         init=const_init)
 )
 
-function pixel_layer(x)
+function single_output(x)
     surface = x[:,:,:,:,1]
     mask = x[:,:,:,:,2]
     masked = surface .* mask
@@ -85,7 +85,7 @@ function loss(batch_Xp, batch_Xd, Y)
     N = size(Y)[1]
     NN_out = conv_net(batch_Xp)
     x = cat(NN_out, batch_Xd, dims=5)
-    pixel = reshape(pixel_layer(x), (N,))
+    pixel = reshape(single_output(x), (N,))
     return sum(Flux.Losses.binarycrossentropy.(pixel, Y))/N
 end
 
@@ -132,15 +132,5 @@ end
 ##### Train model - LEAVE COMMENTED
 
 # train!(conv_net, batches; nepochs=40)
-
-let
-    plot(title = "Training loss", ylabel="Loss", xlabel="Epoch")
-    batch_range = 1/num_batches:(1/num_batches):size(epoch_train_loss_values)[1]
-    epoch_range = 1:size(epoch_train_loss_values)[1]
-    plot!(batch_range,batch_loss_values, label="Batch")
-    plot!(epoch_range,epoch_train_loss_values, label="Train", linewidth=3)
-    plot!(epoch_range, epoch_val_loss_values, label="Validation", linewidth=3)
-end
-
 
 end

@@ -8,7 +8,6 @@ using .cnn
 
 ##### Load model #####
 
-
 function unpack(path)
     JLD2.@load path data
     return data[1], data[2], data[3]
@@ -55,12 +54,13 @@ end
 ### Look at performance
 
 let
-    plot(title = "Loss", ylabel="Loss", xlabel="Epoch")
+    plot(title = "Training performance", ylabel="Loss", xlabel="Epoch", dpi=300)
     batch_range = 1/num_batches:(1/num_batches):size(epoch_train_loss_values)[1]
     epoch_range = 1:size(epoch_train_loss_values)[1]
     # plot!(batch_range,batch_loss_values, label="Batch")
-    plot!(epoch_range,epoch_train_loss_values, label="Train", linewidth=3)
-    plot!(epoch_range,epoch_val_loss_values, label="Validation", linewidth=3)
+    plot!(epoch_range,epoch_train_loss_values, label="Train", linewidth=2)
+    plot!(epoch_range,epoch_val_loss_values, label="Validation", linewidth=2)
+    png("figures/loss_history.png")
 end
 
 
@@ -75,8 +75,10 @@ begin
         push!(surfaces, surf)
         push!(plots, p)
     end
+
     clim = (minimum(minimum.(surfaces)), maximum(maximum.(surfaces)))
     h2 = scatter([0,0], [0,1], zcolor=[0,1], xlims=(1,1.1), label="",clims=clim, c=:summer, framestyle=:none)
     l = @layout [grid(2, 2) a{0.035w}]
-    plot(plots..., h2, layout=l)
+    plot(plots..., h2, layout=l, dpi=300)
+    png("figures/sample_passes.png")
 end
