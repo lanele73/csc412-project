@@ -7,8 +7,6 @@ using Statistics: mean
 
 ##### Load Data #####
 
-
-
 function unpack(path)
     JLD2.@load path data
     return data[1], data[2], data[3]
@@ -22,7 +20,7 @@ begin
     Xd = Xd[:,:,:,shuffle_index]
     Y = Y[shuffle_index]
 
-    split_index = Int(floor(size(Y)[1] * 0.9))
+    split_index = Int(floor(size(Y)[1] * 0.95))
 
     Xp_train = Xp[:,:,:,1:split_index]
     Xd_train = Xd[:,:,:,1:split_index]
@@ -31,7 +29,6 @@ begin
     Xp_test = Xp[:,:,:,split_index+1:end]
     Xd_test = Xd[:,:,:,split_index+1:end]
     Y_test = Y[split_index+1:end]
-
 end
 
 
@@ -61,9 +58,9 @@ conv_net = Chain(
     Conv((1, 1), 16=>1),                
 
     MaxPool((2, 2), pad=SamePad()),     # Same padding
-    Conv((3, 3), 1=>32, relu),
-    symm_pad,
-    Conv((1, 1), 32=>1),                # Symmetric padding
+    Conv((3, 3), 1=>32, relu),          # No padding
+    symm_pad,                           # Symmetric padding
+    Conv((1, 1), 32=>1),                
 
     Upsample((2,2)),
     Conv((3,3), 1=>16, relu),           # No padding
@@ -106,7 +103,8 @@ if test
 end
 
 batch_loss_values = []
-epoch_loss_values = []
+epoch_train_loss_values = []
+epoch_val_loss_values = []
 
 function train!(cnn, data; nepochs=10)
     ps = Flux.params(cnn)
@@ -122,16 +120,27 @@ function train!(cnn, data; nepochs=10)
             @info "Batch loss: $(loss(Xp, Xd, Y))"
             push!(batch_loss_values, loss(Xp, Xd, Y))
         end
-        push!(epoch_loss_values, mean(batch_loss_values[end-num_batches+1:end]))
+        push!(epoch_train_loss_values, mean(batch_loss_values[end-num_batches+1:end]))
+        push!(epoch_val_loss_values, loss(Xp_test, Xd_test, Y_test))
     end
     ps = Flux.params(cnn)
     bson("saved_runs/params$(nepochs).bson", ps=ps)
-    bson("saved_runs/loss_history$(nepochs).bson", history = (batch_loss_values, epoch_loss_values))
+    bson("saved_runs/loss_history$(nepochs).bson", history = (batch_loss_values, epoch_train_loss_values, epoch_val_loss_values))
 end
 
 
 ##### Train model - LEAVE COMMENTED
 
-# train!(conv_net, batches; nepochs=25)
+# train!(conv_net, batches; nepochs=40)
+
+let
+    plot(title = "Training loss", ylabel="Loss", xlabel="Epoch")
+    batch_range = 1/num_batches:(1/num_batches):size(epoch_train_loss_values)[1]
+    epoch_range = 1:size(epoch_train_loss_values)[1]
+    plot!(batch_range,batch_loss_values, label="Batch")
+    plot!(epoch_range,epoch_train_loss_values, label="Train", linewidth=3)
+    plot!(epoch_range, epoch_val_loss_values, label="Validation", linewidth=3)
+end
+
 
 end

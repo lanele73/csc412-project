@@ -22,7 +22,7 @@ begin
     Xd = Xd[:,:,:,shuffle_index]
     Y = Y[shuffle_index]
 
-    split_index = Int(floor(size(Y)[1] * 0.9))
+    split_index = Int(floor(size(Y)[1] * 0.95))
 
     Xp_train = Xp[:,:,:,1:split_index]
     Xd_train = Xd[:,:,:,1:split_index]
@@ -40,26 +40,27 @@ num_batches = Int(ceil(size(Y_train)[1] / bs))
 load_model = true
 if load_model
     using Zygote
-    version = 25
+    version = 40
     BSON.@load "saved_runs/params$(version).bson" ps
     BSON.@load "saved_runs/loss_history$(version).bson" history
-    batch_loss_values, epoch_loss_values = history
+    batch_loss_values, epoch_train_loss_values, epoch_val_loss_values = history
     Flux.loadparams!(conv_net, ps)
     batch_Xp = first(batches)[1]
     batch_Xd = first(batches)[2]
     Y = first(batches)[3]
-    loss(batch_Xp, batch_Xd, Y)  ### Loss should be around 0.38
+    loss(Xp_test, Xd_test, Y_test)  ### Loss should be around 0.39
 end
 
 
 ### Look at performance
 
 let
-    plot(title = "Training loss", ylabel="Loss", xlabel="Epoch")
-    batch_range = 1/num_batches:(1/num_batches):size(epoch_loss_values)[1]
-    epoch_range = 1:size(epoch_loss_values)[1]
-    plot!(batch_range,batch_loss_values, label="Batch")
-    plot!(epoch_range,epoch_loss_values, label="Epoch", linewidth=3)
+    plot(title = "Loss", ylabel="Loss", xlabel="Epoch")
+    batch_range = 1/num_batches:(1/num_batches):size(epoch_train_loss_values)[1]
+    epoch_range = 1:size(epoch_train_loss_values)[1]
+    # plot!(batch_range,batch_loss_values, label="Batch")
+    plot!(epoch_range,epoch_train_loss_values, label="Train", linewidth=3)
+    plot!(epoch_range,epoch_val_loss_values, label="Validation", linewidth=3)
 end
 
 
